@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package gostore_raft.service;
+
+service Service {
+	rpc Join(Request) returns (Response) {}
+}
+
+message Request {
+	string apiAddr = 1;
+	string raftAddr = 2;
+	string nodeID = 3;
+}
+
+message Response {
+	string msg = 1;
+}
+ 

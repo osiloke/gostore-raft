@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package gostore_raft.service;
+
+service Api {
+	rpc Set(Request) returns (Response) {}
+	rpc Get(Request) returns (Response) {}
+}
+
+message Request {
+	string key = 1;
+	string val = 2; 
+}
+
+message Response {
+    string key = 1;
+    string val = 2;
+}
+ 
