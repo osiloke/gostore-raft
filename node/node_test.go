@@ -10,6 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewExpectNode(t *testing.T) {
+	nodeID := "node0"
+	raftAddr := "127.0.0.1:0"
+	tmpDir, _ := ioutil.TempDir("", nodeID)
+	defer os.RemoveAll(tmpDir)
+	node := NewExpectNode(nodeID, "node.test", raftAddr, tmpDir, 3)
+	assert.NotNil(t, node)
+}
 func TestNewNode(t *testing.T) {
 	nodeID := "node0"
 	raftAddr := "127.0.0.1:0"
