@@ -2,7 +2,6 @@ package store
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -31,7 +30,9 @@ type command struct {
 type RaftStore interface {
 	Join(string, string) error
 	Open(bool) error
+	Close()
 	GetConfiguration() raft.Configuration
+	Bootstrap(nodes [][]string) error
 	IsLeader() bool
 }
 
@@ -119,6 +120,20 @@ func (s *DefaultStore) Open(enableSingle bool) error {
 	return nil
 }
 
+//Bootstrap bootstraps a cluster of known nodes
+func (s *DefaultStore) Bootstrap(nodes [][]string) error {
+	servers := make([]raft.Server, len(nodes))
+	for i, n := range nodes {
+		servers[i] = raft.Server{ID: raft.ServerID(n[0]), Address: raft.ServerAddress(n[1])}
+	}
+	s.logger.Printf("Bootstraping %v", servers)
+	f := s.raft.BootstrapCluster(raft.Configuration{Servers: servers})
+	if err := f.Error(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Get returns the value for the given key.
 func (s *DefaultStore) Get(key string) (string, error) {
 	s.mu.Lock()
@@ -168,9 +183,6 @@ func (s *DefaultStore) Delete(key string) error {
 // Join joins a node, identified by nodeID and located at addr, to this store.
 // The node must be ready to respond to Raft communications at that address.
 func (s *DefaultStore) Join(nodeID, addr string) error {
-	if !s.IsLeader() {
-		return errors.New("node is not the leader")
-	}
 	s.logger.Printf("received join request for remote node as [%s]%s", nodeID, addr)
 
 	f := s.raft.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(addr), 0, 0)
@@ -201,6 +213,11 @@ func (s *DefaultStore) IsLeader() bool {
 		return false
 	}
 	return true
+}
+
+// Close the store
+func (s *DefaultStore) Close() {
+
 }
 
 type fsm DefaultStore

@@ -4,6 +4,8 @@ package gostore_raft.service;
 
 service Service {
 	rpc Join(Request) returns (Response) {}
+	rpc Remove(Request) returns (Response) {}
+	rpc Status(Request) returns (StatusResponse) {}
 }
 
 message Request {
@@ -13,6 +15,10 @@ message Request {
 }
 
 message Response {
+	string msg = 1;
+}
+
+message StatusResponse {
 	string msg = 1;
 }
  
