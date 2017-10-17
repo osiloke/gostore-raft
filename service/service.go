@@ -38,6 +38,14 @@ func New(raftAddr, nodeID, advertiseName string, raftStore store.RaftStore, data
 	return srv
 }
 
+// NewWithServer service
+func NewWithServer(raftAddr, nodeID, advertiseName string, raftStore store.RaftStore, dataStore store.Store, microService server.Server) *Service {
+	logger := log.New(os.Stderr, "["+nodeID+"] ", log.LstdFlags)
+	srv := &Service{raftAddr, nodeID, advertiseName, raftStore, dataStore, microService, logger}
+	srv.setup()
+	return srv
+}
+
 // Service handles registrations and discovery
 type Service struct {
 	raftAddr      string
