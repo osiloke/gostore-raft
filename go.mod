@@ -16,6 +16,8 @@ require (
 	golang.org/x/net v0.0.0-20220531201128-c960675eff93
 )
 
+require github.com/gosimple/unidecode v1.0.1 // indirect
+
 require (
 	cloud.google.com/go v0.54.0 // indirect
 	github.com/Microsoft/go-winio v0.5.0 // indirect
@@ -44,6 +46,7 @@ require (
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorethink/gorethink v4.0.0+incompatible // indirect
+	github.com/gosimple/slug v1.12.0
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/hashicorp/go-hclog v1.2.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect

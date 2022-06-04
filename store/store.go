@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gosimple/slug"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
@@ -29,6 +31,7 @@ type command struct {
 // RaftStore represents a store that works with raft.
 type RaftStore interface {
 	Join(string, string) error
+	Start() error
 	Open(bool) error
 	Close()
 	GetConfiguration() raft.Configuration
@@ -45,9 +48,14 @@ type Store interface {
 
 // DefaultStore is a simple key-value store, where all changes are made via Raft consensus.
 type DefaultStore struct {
-	RaftDir  string
-	RaftBind string
-	ID       string
+	RaftDir           string
+	RaftBind          string
+	ID                string
+	raftID            raft.ServerID
+	raftTransport     *raft.NetworkTransport
+	raftConfig        *raft.Config
+	raftLogstore      raft.LogStore
+	raftFileSnapshots *raft.FileSnapshotStore
 
 	mu sync.Mutex
 	m  map[string]string // The key-value store for the system.
@@ -68,15 +76,11 @@ func NewDefaultStore(ID, raftDir, raftBind string) *DefaultStore {
 	}
 }
 
-// Open opens the store. If enableSingle is set, and there are no existing peers,
-// then this node becomes the first node, and therefore leader, of the cluster.
-// localID should be the server identifier for this node.
-func (s *DefaultStore) Open(enableSingle bool) error {
-	log.Println("open", s.ID)
+func (s *DefaultStore) Start() error {
 	// Setup Raft configuration.
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(s.ID)
-
+	s.raftConfig = config
 	// Setup Raft communication.
 	addr, err := net.ResolveTCPAddr("tcp", s.RaftBind)
 	if err != nil {
@@ -86,19 +90,23 @@ func (s *DefaultStore) Open(enableSingle bool) error {
 	if err != nil {
 		return err
 	}
-
+	s.raftTransport = transport
 	// Create the snapshot store. This allows the Raft to truncate the log.
 	snapshots, err := raft.NewFileSnapshotStore(s.RaftDir, retainSnapshotCount, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("file snapshot store: %s", err)
 	}
-
+	s.raftFileSnapshots = snapshots
+	basePath := filepath.Join(slug.Make(s.ID), s.RaftDir)
+	if err = os.MkdirAll(basePath, fs.FileMode(int(0777))); err != nil {
+		return err
+	}
 	// Create the log store and stable store.
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(s.RaftDir, "raft.db"))
+	logStore, err := raftboltdb.NewBoltStore(filepath.Join(basePath, "raft.db"))
 	if err != nil {
 		return fmt.Errorf("new bolt store: %s", err)
 	}
-
+	s.raftLogstore = logStore
 	// Instantiate the Raft systems.
 	ra, err := raft.NewRaft(config, (*fsm)(s), logStore, logStore, snapshots, transport)
 	if err != nil {
@@ -106,17 +114,23 @@ func (s *DefaultStore) Open(enableSingle bool) error {
 	}
 	log.Println("open", s.ID, "raft", ra)
 	s.raft = ra
+	return nil
+}
 
+// Open opens the store. If enableSingle is set, and there are no existing peers,
+// then this node becomes the first node, and therefore leader, of the cluster.
+// localID should be the server identifier for this node.
+func (s *DefaultStore) Open(enableSingle bool) error {
 	if enableSingle {
 		configuration := raft.Configuration{
 			Servers: []raft.Server{
 				raft.Server{
-					ID:      config.LocalID,
-					Address: transport.LocalAddr(),
+					ID:      s.raftConfig.LocalID,
+					Address: s.raftTransport.LocalAddr(),
 				},
 			},
 		}
-		ra.BootstrapCluster(configuration)
+		s.raft.BootstrapCluster(configuration)
 	}
 
 	return nil
@@ -219,6 +233,10 @@ func (s *DefaultStore) IsLeader() bool {
 // Close the store
 func (s *DefaultStore) Close() {
 
+}
+
+func (s *DefaultStore) GetRaft() *raft.Raft {
+	return s.raft
 }
 
 type fsm DefaultStore

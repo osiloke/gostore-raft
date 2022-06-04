@@ -49,6 +49,9 @@ func (n *Node) run() error {
 
 //Start a node. Join existing nodes if possible
 func (n *Node) Start(ctx context.Context) error {
+	if err := n.raftStore.Start(); err != nil {
+		return err
+	}
 	if err := n.srv.Start(); err != nil {
 		return err
 	}

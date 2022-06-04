@@ -162,8 +162,7 @@ func (s *Service) Bootstrap(expect int) error {
 			return true, nil
 		}
 		s.logger.Printf("bootstrap attempt #%d", attempt)
-		var err error
-		err = s.bootstrap(expect)
+		err := s.bootstrap(expect)
 		if err != nil {
 			s.logger.Printf("bootstrap error %v", err.Error())
 			<-time.After(1 * time.Second)
@@ -190,12 +189,12 @@ func (s *Service) Join() error {
 			return true, nil
 		}
 		s.logger.Printf("join attempt #%d", attempt)
-		var err error
-		err = s.join()
+
+		err := s.join()
 		if err != nil {
 			<-time.After(1 * time.Second)
 		}
-		return attempt < 5, err // try 5 times
+		return attempt < 10, err // try 50 times
 	})
 	return err
 }
@@ -232,7 +231,8 @@ func (s *Service) Run(ctx context.Context) error {
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
 
 	if err := s.Start(); err != nil {
-		return err
+		panic(err)
+		// return err
 	}
 	select {
 	case <-ctx.Done():
