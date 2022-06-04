@@ -38,31 +38,35 @@ func Test_StartSingleNode(t *testing.T) {
 }
 
 func Test_ClusterConsensus(t *testing.T) {
+	var err error
 	ctx := context.Background()
 	nodeID := "node0"
-	raftAddr := "127.0.0.1:0"
+	raftAddr := "127.0.0.1:5000"
 	tmpDir, _ := ioutil.TempDir("", nodeID)
 	defer os.RemoveAll(tmpDir)
 	node := NewNode(nodeID, "node.test", raftAddr, tmpDir)
-	node.Start(ctx)
+	err = node.Start(ctx)
+	assert.Nil(t, err)
 	defer node.Stop()
 
 	<-time.After(5 * time.Second)
 	nodeID2 := "node2"
-	raftAddr2 := "127.0.0.1:2"
+	raftAddr2 := "127.0.0.1:5002"
 	tmpDir2, _ := ioutil.TempDir("", nodeID2)
 	defer os.RemoveAll(tmpDir2)
 	node2 := NewNode(nodeID2, "node.test", raftAddr2, tmpDir2)
-	node2.Start(ctx)
+	err = node2.Start(ctx)
+	assert.Nil(t, err)
 	defer node2.Stop()
 
 	// <-time.After(10 * time.Second)
 	nodeID3 := "node3"
-	raftAddr3 := "127.0.0.1:3"
+	raftAddr3 := "127.0.0.1:5003"
 	tmpDir3, _ := ioutil.TempDir("", nodeID3)
 	defer os.RemoveAll(tmpDir3)
 	node3 := NewNode(nodeID3, "node.test", raftAddr3, tmpDir3)
-	node3.Start(ctx)
+	err = node3.Start(ctx)
+	assert.Nil(t, err)
 	defer node3.Stop()
 
 	<-time.After(5 * time.Second)

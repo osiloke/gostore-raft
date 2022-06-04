@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/raft"
-	"github.com/hashicorp/raft-boltdb"
+	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
 
 const (
@@ -72,6 +72,7 @@ func NewDefaultStore(ID, raftDir, raftBind string) *DefaultStore {
 // then this node becomes the first node, and therefore leader, of the cluster.
 // localID should be the server identifier for this node.
 func (s *DefaultStore) Open(enableSingle bool) error {
+	log.Println("open", s.ID)
 	// Setup Raft configuration.
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(s.ID)
@@ -103,6 +104,7 @@ func (s *DefaultStore) Open(enableSingle bool) error {
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
+	log.Println("open", s.ID, "raft", ra)
 	s.raft = ra
 
 	if enableSingle {
@@ -194,7 +196,6 @@ func (s *DefaultStore) Join(nodeID, addr string) error {
 }
 
 func (s *DefaultStore) GetConfiguration() raft.Configuration {
-
 	future := s.raft.GetConfiguration()
 
 	if err := future.Error(); err != nil {
