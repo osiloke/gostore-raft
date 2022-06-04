@@ -9,34 +9,29 @@ import (
 
 // Test_DefaultStoreOpen tests that the store can be opened.
 func Test_DefaultStoreOpen(t *testing.T) {
-	s := New()
 	tmpDir, _ := ioutil.TempDir("", "store_test")
+	s := NewDefaultStore("node0", tmpDir, "127.0.0.1:0")
 	defer os.RemoveAll(tmpDir)
-
-	s.RaftBind = "127.0.0.1:0"
-	s.RaftDir = tmpDir
 	if s == nil {
 		t.Fatalf("failed to create store")
 	}
 
-	if err := s.Open(false, "node0"); err != nil {
+	if err := s.Open(false); err != nil {
 		t.Fatalf("failed to open store: %s", err)
 	}
 }
 
 // Test_StoreOpenSingleNode tests that a command can be applied to the log
 func Test_DefaultStoreOpenSingleNode(t *testing.T) {
-	s := NewDefaultStore()
 	tmpDir, _ := ioutil.TempDir("", "store_test")
+	s := NewDefaultStore("node0", tmpDir, "127.0.0.1:0")
 	defer os.RemoveAll(tmpDir)
 
-	s.RaftBind = "127.0.0.1:0"
-	s.RaftDir = tmpDir
 	if s == nil {
 		t.Fatalf("failed to create store")
 	}
 
-	if err := s.Open(true, "node0"); err != nil {
+	if err := s.Open(true); err != nil {
 		t.Fatalf("failed to open store: %s", err)
 	}
 
