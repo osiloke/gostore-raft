@@ -3,9 +3,9 @@ package handler
 import (
 	"log"
 
-	"github.com/micro/go-micro/server"
 	proto "github.com/osiloke/gostore_raft/service/proto/store"
 	"github.com/osiloke/gostore_raft/store"
+	"go-micro.dev/v4/server"
 
 	"golang.org/x/net/context"
 )

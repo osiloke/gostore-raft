@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"github.com/micro/go-micro/client"
 	proto "github.com/osiloke/gostore_raft/service/proto/store"
+	"go-micro.dev/v4/client"
 )
 
 // NewMicroClient creates a new micro client for a cluster at advertiseName

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -12,9 +11,9 @@ import (
 	"time"
 
 	"github.com/matryer/try"
-	"github.com/micro/go-micro/client"
-	"github.com/micro/go-micro/registry"
-	"github.com/micro/go-micro/server"
+	"go-micro.dev/v4/client"
+	"go-micro.dev/v4/registry"
+	"go-micro.dev/v4/server"
 
 	"github.com/osiloke/gostore_raft/service/handler"
 	proto "github.com/osiloke/gostore_raft/service/proto/service"
@@ -84,11 +83,11 @@ func (s *Service) callJoin(srvName string, node *registry.Node, raftAddr string)
 
 	rsp := new(proto.Response)
 	address := node.Address
-	if node.Port > 0 {
-		address = fmt.Sprintf("%s:%d", address, node.Port)
-	}
+	// if node.Port > 0 {
+	// 	address = fmt.Sprintf("%s:%d", address, node.Port)
+	// }
 	req := client.NewRequest(srvName, "Service.Join", &proto.Request{NodeID: s.nodeID, RaftAddr: raftAddr})
-	err := c.CallRemote(ctx, address, req, rsp, client.WithRetries(3))
+	err := c.Call(ctx, req, rsp, client.WithRetries(3), client.WithAddress(address))
 	return err
 }
 
@@ -207,10 +206,10 @@ func (s *Service) Start() error {
 		return err
 	}
 
-	if err := s.server.Register(); err != nil {
-		s.server.Stop()
-		return err
-	}
+	// if err := s.server.Register(); err != nil {
+	// 	s.server.Stop()
+	// 	return err
+	// }
 	return nil
 }
 
@@ -220,9 +219,9 @@ func (s *Service) Stop() error {
 		return err
 	}
 
-	if err := s.server.Deregister(); err != nil {
-		return err
-	}
+	// if err := s.server.Deregister(); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 

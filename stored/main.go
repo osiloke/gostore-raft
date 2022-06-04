@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/micro/cli"
-	"github.com/micro/go-micro/cmd"
 	"github.com/osiloke/gostore_raft/node"
+	"github.com/urfave/cli/v2"
+	"go-micro.dev/v4/cmd"
 )
 
 func main() {
@@ -19,37 +19,38 @@ func main() {
 	)
 	cmd.DefaultCmd.App().Flags = append(
 		cmd.DefaultCmd.App().Flags,
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:        "nodeID",
-			EnvVar:      "NODE_ID",
+			EnvVars:     []string{"NODE_ID"},
 			Usage:       "node id",
 			Value:       "node0",
 			Destination: &nodeID,
-		}, cli.StringFlag{
+		}, &cli.StringFlag{
 			Name:        "clusterName",
-			EnvVar:      "CLUSTER_NAME",
+			EnvVars:     []string{"CLUSTER_NAME"},
 			Usage:       "gostore.raft",
-			Value:       "gostore.raft",
+			Value:       "go.micro.api.raft",
 			Destination: &clusterName,
-		}, cli.StringFlag{
+		}, &cli.StringFlag{
 			Name:        "raftDir",
-			EnvVar:      "RAFT_DIR",
+			EnvVars:     []string{"RAFT_DIR"},
 			Usage:       "./.raft",
 			Value:       "./.raft",
 			Destination: &raftDir,
-		}, cli.StringFlag{
+		}, &cli.StringFlag{
 			Name:        "raftAddr",
-			EnvVar:      "RAFT_ADDR",
+			EnvVars:     []string{"RAFT_ADDR"},
 			Usage:       "raft addr",
 			Value:       "127.0.0.1:5000",
 			Destination: &raftAddr,
-		}, cli.IntFlag{
+		}, &cli.IntFlag{
 			Name:        "bootstrap-expect",
-			EnvVar:      "BOOTSTRAP_EXPECT",
+			EnvVars:     []string{"BOOTSTRAP_EXPECT"},
 			Usage:       "if this is greater than 0, this node will only bootstrap when n nodes are available, this has to be an odd number greater than 1",
 			Value:       0,
 			Destination: &expect,
-		})
+		},
+	)
 	cmd.Init(cmd.Name("gostore.node"))
 	var nd *node.Node
 	if expect > 0 {
