@@ -89,9 +89,9 @@ func (n *Node) Stop() error {
 	if err := n.srv.Stop(); err != nil {
 		return err
 	}
-	// if err := n.srv.Leave(); err != nil {
-	// 	return err
-	// }
+	if err := n.srv.Leave(); err != nil {
+		return err
+	}
 	return nil
 
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -38,6 +39,8 @@ type RaftStore interface {
 	Bootstrap(nodes [][]string) error
 	Leader() raft.ServerAddress
 	IsLeader() bool
+	Leave(peerId string) error
+	Stats() map[string]string
 }
 
 // Store is an interface generated for "github.com/osiloke/gostore_raft/store".Store.
@@ -125,7 +128,7 @@ func (s *DefaultStore) Open(enableSingle bool) error {
 	if enableSingle {
 		configuration := raft.Configuration{
 			Servers: []raft.Server{
-				raft.Server{
+				{
 					ID:      s.raftConfig.LocalID,
 					Address: s.raftTransport.LocalAddr(),
 				},
@@ -146,6 +149,22 @@ func (s *DefaultStore) Bootstrap(nodes [][]string) error {
 	s.logger.Printf("Bootstraping %v", servers)
 	f := s.raft.BootstrapCluster(raft.Configuration{Servers: servers})
 	if err := f.Error(); err != nil {
+		return err
+	}
+	return nil
+}
+
+//Leave cluster
+func (s *DefaultStore) Leave(peerId string) error {
+	if s.raft.State() != raft.Leader {
+		return errors.New("not the leader")
+	}
+	configFuture := s.raft.GetConfiguration()
+	if err := configFuture.Error(); err != nil {
+		return err
+	}
+	future := s.raft.RemoveServer(raft.ServerID(peerId), 0, 0)
+	if err := future.Error(); err != nil {
 		return err
 	}
 	return nil
@@ -231,17 +250,21 @@ func (s *DefaultStore) IsLeader() bool {
 	return true
 }
 
-// Close the store
-func (s *DefaultStore) Close() {
-
-}
-
 func (s *DefaultStore) Leader() raft.ServerAddress {
 	return s.raft.Leader()
 }
 
 func (s *DefaultStore) GetRaft() *raft.Raft {
 	return s.raft
+}
+
+func (s *DefaultStore) Stats() map[string]string {
+	return s.raft.Stats()
+}
+
+// Close the store
+func (s *DefaultStore) Close() {
+
 }
 
 type fsm DefaultStore

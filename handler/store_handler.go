@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/osiloke/gostore_raft/selectors"
 	proto "github.com/osiloke/gostore_raft/service/proto/store"
 	"github.com/osiloke/gostore_raft/store"
 	"go-micro.dev/v4/client"
@@ -38,7 +39,7 @@ func (s *Store) forwardToLeader(ctx context.Context, resource string, req *proto
 			defer cancel()
 			nodeAdvertiseName := fmt.Sprintf("%s.%s", s.serviceName, peer.ID)
 			log.Printf("forwarding %s to leader [%s] @ %s", resource, nodeAdvertiseName, peer.Address)
-			c := client.NewClient(client.Wrap(NewNodeSelectorWrapper))
+			c := client.NewClient(client.Wrap(selectors.NewNodeSelectorWrapper))
 			req := client.NewRequest(s.serviceName, resource, req)
 			return c.Call(ctx2, req, rsp, client.WithRetries(3))
 		}

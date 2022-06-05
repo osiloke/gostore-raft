@@ -91,6 +91,17 @@ func (s *Service) callJoin(srvName string, node *registry.Node, raftAddr string)
 	return err
 }
 
+func (s *Service) callLeave(srvName string, node *registry.Node, raftAddr string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	c := client.NewClient(client.Registry(s.server.Options().Registry))
+	rsp := new(proto.Response)
+	address := node.Address
+	req := client.NewRequest(srvName, "Service.Leave", &proto.Request{NodeID: s.nodeID, RaftAddr: raftAddr})
+	err := c.Call(ctx, req, rsp, client.WithRetries(3), client.WithAddress(address))
+	return err
+}
+
 func (s *Service) join() error {
 	//get all services available
 	services, err := s.ListServices()
@@ -139,7 +150,7 @@ func (s *Service) bootstrap(expect int) error {
 	count := len(nodes)
 	// bootstrap expect 3
 	if count == expect {
-		s.logger.Printf("attempting to bootstra to %d service nodes", count)
+		s.logger.Printf("attempting to bootstrap to %d service nodes", count)
 		rnodes := make([][]string, count)
 		for i, node := range nodes {
 			ID := node.Metadata["ID"]
@@ -223,6 +234,41 @@ func (s *Service) Stop() error {
 	// 	return err
 	// }
 	return nil
+}
+
+func (s *Service) Leave() error {
+	if s.raftStore.IsLeader() {
+		return s.raftStore.Leave(s.raftAddr)
+	}
+	//get all services available
+	services, err := s.ListServices()
+	if err != nil {
+		return err
+	}
+	if len(services) == 0 {
+		return errors.New("no services found")
+	}
+	srv := services[0]
+	nodes := srv.Nodes
+	count := len(nodes)
+	s.logger.Printf("found %d service nodes", count)
+
+	for _, node := range nodes {
+		raftAddr := node.Metadata["raftAddr"]
+		if raftAddr == s.raftAddr {
+			s.logger.Println("skipping self")
+			continue
+		}
+		s.logger.Printf("Attempting to leave cluster [%s] via leader %s at %s", srv.Name, node.Id, raftAddr)
+		err := s.callLeave(srv.Name, node, s.raftAddr)
+		if err == nil {
+			// set leader in service
+			s.logger.Printf("left cluster [%s] leader %s at %s", srv.Name, node.Id, raftAddr)
+			return nil
+		}
+		s.logger.Printf("cannot leave %s - %s", raftAddr, err.Error())
+	}
+	return errors.New("unable to leave cluster")
 }
 
 // Run runs a service which listens for raft and store requests
