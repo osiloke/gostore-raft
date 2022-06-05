@@ -15,7 +15,7 @@ import (
 	"go-micro.dev/v4/registry"
 	"go-micro.dev/v4/server"
 
-	"github.com/osiloke/gostore_raft/service/handler"
+	"github.com/osiloke/gostore_raft/handler"
 	proto "github.com/osiloke/gostore_raft/service/proto/service"
 	"github.com/osiloke/gostore_raft/store"
 )
@@ -111,10 +111,11 @@ func (s *Service) join() error {
 			s.logger.Println("skipping self")
 			continue
 		}
-		s.logger.Printf("Attempting to join cluster %s at %s", srv.Name, raftAddr)
+		s.logger.Printf("Attempting to join cluster [%s] via leader %s at %s", srv.Name, node.Id, raftAddr)
 		err := s.callJoin(srv.Name, node, s.raftAddr)
 		if err == nil {
-			s.logger.Printf("joined cluster %s at %s", srv.Name, raftAddr)
+			// set leader in service
+			s.logger.Printf("joined cluster [%s] leader %s at %s", srv.Name, node.Id, raftAddr)
 			return nil
 		}
 		s.logger.Printf("cannot join %s - %s", raftAddr, err.Error())

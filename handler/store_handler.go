@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"strings"
 
 	proto "github.com/osiloke/gostore_raft/service/proto/store"
 	"github.com/osiloke/gostore_raft/store"
@@ -30,6 +31,10 @@ func (e *Store) Get(ctx context.Context, req *proto.Request, rsp *proto.Response
 // Set a key in the store
 func (e *Store) Set(ctx context.Context, req *proto.Request, rsp *proto.Response) error {
 	if err := e.Store.Set(req.Key, req.Val); err != nil {
+		// if err is not leader, then forward req to leader
+		if strings.Contains(err.Error(), "not leader") {
+
+		}
 		return err
 	}
 	rsp.Key = req.Key
