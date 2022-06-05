@@ -65,7 +65,7 @@ func (s *Service) setup() {
 	)
 	s.server.Handle(
 		server.NewHandler(
-			&handler.Store{Store: s.store},
+			handler.NewStore(s.advertiseName, s.store, s.raftStore),
 		),
 	)
 }

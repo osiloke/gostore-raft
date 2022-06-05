@@ -36,6 +36,7 @@ type RaftStore interface {
 	Close()
 	GetConfiguration() raft.Configuration
 	Bootstrap(nodes [][]string) error
+	Leader() raft.ServerAddress
 	IsLeader() bool
 }
 
@@ -233,6 +234,10 @@ func (s *DefaultStore) IsLeader() bool {
 // Close the store
 func (s *DefaultStore) Close() {
 
+}
+
+func (s *DefaultStore) Leader() raft.ServerAddress {
+	return s.raft.Leader()
 }
 
 func (s *DefaultStore) GetRaft() *raft.Raft {
