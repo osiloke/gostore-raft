@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -32,6 +33,7 @@ func NewStore(serviceName string, s store.Store, rs store.RaftStore) *Store {
 func (s *Store) forwardToLeader(ctx context.Context, resource string, req *proto.Request, rsp *proto.Response) error {
 	configFuture := s.raftStore.GetConfiguration()
 	for _, peer := range configFuture.Servers {
+		log.Println(peer)
 		if peer.Address == s.raftStore.Leader() {
 			ctx2, cancel := context.WithTimeout(metadata.NewContext(context.Background(), map[string]string{
 				"NodeID": string(peer.ID),
@@ -50,18 +52,22 @@ func (s *Store) forwardToLeader(ctx context.Context, resource string, req *proto
 // Get a key from the store
 func (s *Store) Get(ctx context.Context, req *proto.Request, rsp *proto.Response) error {
 	log.Printf("%s - received get request", server.DefaultOptions().Id)
-	val, err := s.store.Get(req.Key)
-	if err != nil {
-		return err
+	var resp interface{}
+	var err error
+	if err = s.store.DataStore().Get(req.Key, "store", &resp); err == nil {
+		rsp.Key = req.Key
+		var val []byte
+		if val, err = json.Marshal(&resp); err == nil {
+			rsp.Val = string(val)
+		}
 	}
-	rsp.Key = req.Key
-	rsp.Val = val
-	return nil
+	return err
 }
 
 // Set a key in the store
 func (s *Store) Set(ctx context.Context, req *proto.Request, rsp *proto.Response) error {
-	if err := s.store.Set(req.Key, req.Val); err != nil {
+	log.Printf("%s - received set request", server.DefaultOptions().Id)
+	if err := s.store.Set(req.Key, "store", req.Val); err != nil {
 		// if err is not leader, then forward req to leader
 		if strings.Contains(err.Error(), "not leader") {
 			return s.forwardToLeader(ctx, "Store.Set", req, rsp)

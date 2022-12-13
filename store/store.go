@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -13,8 +12,10 @@ import (
 	"time"
 
 	"github.com/gosimple/slug"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb"
+	"github.com/osiloke/gostore"
+	"github.com/osiloke/gostore-contrib/badger"
 )
 
 const (
@@ -23,9 +24,10 @@ const (
 )
 
 type command struct {
-	Op    string `json:"op,omitempty"`
-	Key   string `json:"key,omitempty"`
-	Value string `json:"value,omitempty"`
+	Op    string      `json:"op,omitempty"`
+	Key   string      `json:"key,omitempty"`
+	Store string      `json:"store,omitempty"`
+	Value interface{} `json:"value,omitempty"`
 }
 
 // RaftStore represents a store that works with raft.
@@ -44,9 +46,9 @@ type RaftStore interface {
 
 // Store is an interface generated for "github.com/osiloke/gostore_raft/store".Store.
 type Store interface {
-	Delete(string) error
-	Get(string) (string, error)
-	Set(string, string) error
+	Delete(string, string) error
+	Set(string, string, interface{}) error
+	DataStore() gostore.ObjectStore
 }
 
 // DefaultStore is a simple key-value store, where all changes are made via Raft consensus.
@@ -62,10 +64,11 @@ type DefaultStore struct {
 
 	mu sync.Mutex
 	m  map[string]string // The key-value store for the system.
+	gs gostore.ObjectStore
 
 	raft *raft.Raft // The consensus mechanism
 
-	logger *log.Logger
+	logger hclog.Logger
 }
 
 // NewDefaultStore returns a new DefaultStore.
@@ -75,7 +78,7 @@ func NewDefaultStore(ID, raftDir, raftBind string) *DefaultStore {
 		RaftDir:  raftDir,
 		RaftBind: raftBind,
 		ID:       ID,
-		logger:   log.New(os.Stderr, "["+ID+"] ", log.LstdFlags),
+		logger:   log.Named(fmt.Sprintf("[%s]", ID)),
 	}
 }
 
@@ -104,18 +107,20 @@ func (s *DefaultStore) Start() error {
 	if err = os.MkdirAll(basePath, fs.FileMode(int(0777))); err != nil {
 		return err
 	}
-	// Create the log store and stable store.
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(basePath, "raft.db"))
+
+	badgerdir := fmt.Sprintf("%s/badger", basePath)
+
+	gs, err := badger.NewWithIndex(badgerdir, badgerdir+"_indexer")
 	if err != nil {
 		return fmt.Errorf("new bolt store: %s", err)
 	}
-	s.raftLogstore = logStore
+	s.gs = gs
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(config, (*fsm)(s), logStore, logStore, snapshots, transport)
+	ra, err := raft.NewRaft(config, (*raftBadger)(s), (*raftBadger)(s), (*raftBadger)(s), snapshots, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
-	log.Println("open", s.ID, "raft", ra)
+	log.Info("open", s.ID, "raft", ra)
 	s.raft = ra
 	return nil
 }
@@ -145,7 +150,7 @@ func (s *DefaultStore) Bootstrap(nodes [][]string) error {
 	for i, n := range nodes {
 		servers[i] = raft.Server{ID: raft.ServerID(n[0]), Address: raft.ServerAddress(n[1])}
 	}
-	s.logger.Printf("Bootstraping %v", servers)
+	s.logger.Info("Bootstraping %v", servers)
 	f := s.raft.BootstrapCluster(raft.Configuration{Servers: servers})
 	if err := f.Error(); err != nil {
 		return err
@@ -169,15 +174,8 @@ func (s *DefaultStore) Leave(peerId string) error {
 	return nil
 }
 
-// Get returns the value for the given key.
-func (s *DefaultStore) Get(key string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.m[key], nil
-}
-
 // Set sets the value for the given key.
-func (s *DefaultStore) Set(key, value string) error {
+func (s *DefaultStore) Set(key, store string, value interface{}) error {
 	if s.raft.State() != raft.Leader {
 		return fmt.Errorf("not leader")
 	}
@@ -185,6 +183,7 @@ func (s *DefaultStore) Set(key, value string) error {
 	c := &command{
 		Op:    "set",
 		Key:   key,
+		Store: store,
 		Value: value,
 	}
 	b, err := json.Marshal(c)
@@ -193,18 +192,22 @@ func (s *DefaultStore) Set(key, value string) error {
 	}
 
 	f := s.raft.Apply(b, raftTimeout)
-	return f.Error()
+	if err := f.Error(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Delete deletes the given key.
-func (s *DefaultStore) Delete(key string) error {
+func (s *DefaultStore) Delete(key, store string) error {
 	if s.raft.State() != raft.Leader {
 		return fmt.Errorf("not leader")
 	}
 
 	c := &command{
-		Op:  "delete",
-		Key: key,
+		Op:    "delete",
+		Key:   key,
+		Store: store,
 	}
 	b, err := json.Marshal(c)
 	if err != nil {
@@ -212,19 +215,22 @@ func (s *DefaultStore) Delete(key string) error {
 	}
 
 	f := s.raft.Apply(b, raftTimeout)
-	return f.Error()
+	if err := f.Error(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Join joins a node, identified by nodeID and located at addr, to this store.
 // The node must be ready to respond to Raft communications at that address.
 func (s *DefaultStore) Join(nodeID, addr string) error {
-	s.logger.Printf("received join request for remote node as [%s]%s", nodeID, addr)
+	s.logger.Debug("received join request for remote node as [%s]%s", nodeID, addr)
 
 	f := s.raft.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(addr), 0, 0)
 	if f.Error() != nil {
 		return f.Error()
 	}
-	s.logger.Printf("node at %s joined successfully", addr)
+	s.logger.Debug("node at %s joined successfully", addr)
 	return nil
 }
 
@@ -263,5 +269,9 @@ func (s *DefaultStore) Stats() map[string]string {
 
 // Close the store
 func (s *DefaultStore) Close() {
+	s.gs.Close()
+}
 
+func (s *DefaultStore) DataStore() gostore.ObjectStore {
+	return s.gs
 }
