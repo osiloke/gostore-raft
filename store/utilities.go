@@ -36,6 +36,14 @@ func logKeyOf(idxKey uint64) []byte {
 	return []byte(key)
 }
 
+func replayKeyOf(rawKey []byte) []byte {
+	key := fmt.Sprintf("%s%s", dbReplayPrefix, hex.EncodeToString(rawKey))
+	if log.IsTrace() {
+		log.Trace("badger key", "log", key)
+	}
+	return []byte(key)
+}
+
 func u64KeyOf(rawKey []byte) []byte {
 	key := fmt.Sprintf("%s%s", dbU64Prefix, hex.EncodeToString(rawKey))
 	if log.IsDebug() {

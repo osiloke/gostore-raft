@@ -1,19 +1,23 @@
 syntax = "proto3";
 
 package gostore_raft.service.store;
+option go_package = "../store";
 
 service Store {
+	rpc All(Request) returns (Response) {}
 	rpc Get(Request) returns (Response) {}
 	rpc Set(Request) returns (Response) {}
 }
 
 message Request {
 	string key = 1;
-	string val = 2;
+	string store = 2;
+	string val = 3;
 }
 
 message Response {
 	string key = 1;
-	string val = 2;
+	string store = 2;
+	string val = 3;
 }
  

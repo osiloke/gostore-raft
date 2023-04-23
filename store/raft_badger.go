@@ -7,13 +7,20 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/dgraph-io/badger"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
+	"github.com/osiloke/gostore"
 )
 
-type raftBadger DefaultStore
+type raftBadger struct {
+	logger hclog.Logger
+	gs     gostore.ObjectStore
+}
 
 // Apply applies a Raft log entry to the key-value store.
 func (b *raftBadger) Apply(l *raft.Log) interface{} {
@@ -26,48 +33,87 @@ func (b *raftBadger) Apply(l *raft.Log) interface{} {
 	case raft.LogCommand:
 		var payload = command{}
 		if err := json.Unmarshal(l.Data, &payload); err != nil {
-			log.Error("error un-marshaling payload", "cause", err.Error())
+			b.logger.Error("error un-marshaling payload", "cause", hclog.Fmt("%v", err.Error()))
 			return nil
 		}
 		switch payload.Op {
+		case CMDREPLAY:
+			if _, ok := payload.Value.(string); ok {
+				return nil
+			}
+			replayStatus := []byte{0}
+			if v, ok := payload.Value.(bool); ok {
+				if v {
+					replayStatus[0] = 1
+				}
+			} else {
+				replayStatus = payload.Value.([]byte)
+			}
+			err := b.SetRaw(replayKeyOf([]byte(payload.Store)), replayStatus)
+			return &RpcResponse{Error: err, Data: payload.Value}
 		case CMDSET:
 			_, err := b.gs.Save(payload.Key, payload.Store, payload.Value)
+			return &RpcResponse{Error: err, Data: payload.Value}
+		case CMDMOD:
+			err := b.gs.Update(payload.Key, payload.Store, payload.Value)
 			return &RpcResponse{Error: err, Data: payload.Value}
 		case CMDDEL:
 			err := b.gs.Delete(payload.Key, payload.Store)
 			return &RpcResponse{Error: err, Data: nil}
 		default:
-			log.Warn("Invalid Raft log command", "payload", payload.Op)
+			b.logger.Warn("Invalid Raft log command", "payload", hclog.Fmt("%v", payload.Op))
 		}
 	}
-	log.Info("Raft log command", "type", raft.LogCommand)
+	b.logger.Info("Raft log command", "type", hclog.Fmt("%v", raft.LogCommand))
 	return nil
 }
 
 // Snapshot returns a snapshot of the key-value store.
 func (b *raftBadger) Snapshot() (raft.FSMSnapshot, error) {
-	// b.mu.Lock()
-	// defer b.mu.Unlock()
-
-	// // Clone the map.
-	// o := make(map[string]string)
-	// for k, v := range b.m {
-	// 	o[k] = v
-	// }
-	// return &fsmSnapshot{store: o}, nil
-	return &fsmSnapshot{}, nil
+	return newSnapshotNoop()
 }
 
 // Restore stores the key-value store to a previous state.
-func (b *raftBadger) Restore(rc io.ReadCloser) error {
-	// o := make(map[string]string)
-	// if err := json.NewDecoder(rc).Decode(&o); err != nil {
-	// 	return err
-	// }
+func (b *raftBadger) Restore(rClose io.ReadCloser) error {
+	defer func() {
+		if err := rClose.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stdout, "[FINALLY RESTORE] close error %s\n", err.Error())
+		}
+	}()
 
-	// // Set the state from the snapshot, no lock required according to
-	// // Hashicorp docs.
-	// b.m = o
+	_, _ = fmt.Fprintf(os.Stdout, "[START RESTORE] read all message from snapshot\n")
+	var totalRestored int
+
+	decoder := json.NewDecoder(rClose)
+	for decoder.More() {
+		var data = &command{}
+		err := decoder.Decode(data)
+		if err != nil {
+			if !strings.Contains(err.Error(), "EOF") {
+				_, _ = fmt.Fprintf(os.Stdout, "[END RESTORE]snap skipped\n", totalRestored)
+				return nil
+			}
+			_, _ = fmt.Fprintf(os.Stdout, "[END RESTORE] error decode data %s\n", err.Error())
+			return err
+		}
+		var key string
+		if key, err = b.gs.Save(data.Key, data.Store, data.Value); err != nil {
+			_, _ = fmt.Fprintf(os.Stdout, "[END RESTORE] error persist data %s\n", err.Error())
+			return err
+		}
+		b.logger.Debug("restored key", "key", hclog.Fmt("%v", key))
+
+		totalRestored++
+	}
+
+	// read closing bracket
+	_, err := decoder.Token()
+	if err != nil && !strings.Contains(err.Error(), "EOF") {
+		_, _ = fmt.Fprintf(os.Stdout, "[END RESTORE] error %s\n", err.Error())
+		return err
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "[END RESTORE] success restore %d messages in snapshot\n", totalRestored)
 	return nil
 }
 func (s *raftBadger) Persist(_ raft.SnapshotSink) error {
@@ -172,8 +218,9 @@ func (b *raftBadger) FirstIndex() (uint64, error) {
 
 // LastIndex returns the last known index from the Raft log.
 func (b *raftBadger) LastIndex() (uint64, error) {
+	store := b.gs.GetStore().(*badger.DB)
 	last := uint64(0)
-	if err := b.gs.GetStore().(*badger.DB).View(func(txn *badger.Txn) error {
+	if err := store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.Reverse = true
 		it := txn.NewIterator(opts)
@@ -200,9 +247,11 @@ func (b *raftBadger) LastIndex() (uint64, error) {
 
 // GetLog is used to retrieve a log from Badger at a given index.
 func (b *raftBadger) GetLog(idx uint64, log *raft.Log) error {
+
 	return b.gs.GetStore().(*badger.DB).View(func(txn *badger.Txn) error {
 		item, _ := txn.Get(logKeyOf(idx))
 		if item == nil {
+			b.logger.Error("GetLog", "index", hclog.Fmt("%v", idx))
 			return raft.ErrLogNotFound
 		}
 		err := item.Value(func(val []byte) error {
@@ -216,6 +265,7 @@ func (b *raftBadger) GetLog(idx uint64, log *raft.Log) error {
 
 // StoreLogs is used to store a set of raft logs
 func (b *raftBadger) StoreLogs(logs []*raft.Log) error {
+
 	maxBatchSize := b.gs.GetStore().(*badger.DB).MaxBatchSize()
 	min := uint64(0)
 	max := uint64(len(logs))
@@ -227,8 +277,10 @@ func (b *raftBadger) StoreLogs(logs []*raft.Log) error {
 			log := logs[index]
 			var out bytes.Buffer
 			enc := gob.NewEncoder(&out)
+			b.logger.Info("StoreLogs", "index", hclog.Fmt("%d", log.Index), hclog.Fmt("%v", "term"), log.Term)
 			enc.Encode(log)
 			if err := txn.Set(logKeyOf(log.Index), out.Bytes()); err != nil {
+				b.logger.Error("failed saving log", "index", hclog.Fmt("%d", log.Index), hclog.Fmt("%v", "term"), log.Term)
 				return err
 			}
 		}
@@ -236,11 +288,14 @@ func (b *raftBadger) StoreLogs(logs []*raft.Log) error {
 			return err
 		}
 	}
+	b.logger.Info("LogStored")
+
 	return nil
 }
 
 // StoreLog is used to store a single raft log
 func (b *raftBadger) StoreLog(log *raft.Log) error {
+	b.logger.Debug("StoreLog", "log", log)
 	return b.StoreLogs([]*raft.Log{log})
 }
 
@@ -286,13 +341,42 @@ func (b *raftBadger) DeleteRange(min, max uint64) error {
 
 // Get a value in StableStore.
 func (b *raftBadger) Get(k []byte) ([]byte, error) {
-	log.Debug(fmt.Sprintf("get %s", string(k)))
 	return b.GetRaw(sstKeyOf(k))
 }
 
 // Set a key/value in StableStore.
 func (b *raftBadger) Set(k []byte, v []byte) error {
 	return b.SetRaw(sstKeyOf(k), v)
+}
+
+func (b *raftBadger) AllKeys() (err error) {
+	db := b.gs.GetStore().(*badger.DB)
+	err = db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		opts.Reverse = true
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			// obj := make([][]byte, 2)
+			// err := item.Value(func(v []byte) error {
+			// 	obj[1] = append([]byte{}, v...)
+			// 	return nil
+			// })
+			// if err != nil {
+			// 	return err
+			// }
+			// objs = append(objs, obj)
+			// obj[0] = make([]byte, len(k))
+			// copy(obj[0], k)
+			key := string(k)
+			b.logger.Debug("Existing key", "key", key)
+		}
+		return nil
+	})
+	return err
 }
 
 func (b *raftBadger) Close() error {

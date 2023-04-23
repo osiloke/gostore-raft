@@ -7,11 +7,14 @@ import (
 )
 
 const (
+	CMDREPLAY    = "replay"
 	CMDSET       = "set"
+	CMDMOD       = "mod"
 	CMDDEL       = "del"
 	BDGLOGPREFIX = "rft:"
 	BDGSSTPREFIX = "sst:"
 	BDGDATPREFIX = "dat:"
+	REPLAYPREFIX = "rep:"
 	BDGU64PREFIX = "u64:"
 )
 
@@ -20,6 +23,7 @@ var (
 	dbDatPrefix    = []byte(BDGDATPREFIX)
 	dbU64Prefix    = []byte(BDGU64PREFIX)
 	dbSstPrefix    = []byte(BDGSSTPREFIX)
+	dbReplayPrefix = []byte(REPLAYPREFIX)
 	ErrKeyNotFound = errors.New("not found")
 )
 

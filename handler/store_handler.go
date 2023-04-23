@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/osiloke/gostore_raft/selectors"
+
+	// service "github.com/osiloke/gostore_raft/service/proto/service"
 	proto "github.com/osiloke/gostore_raft/service/proto/store"
 	"github.com/osiloke/gostore_raft/store"
 	"go-micro.dev/v4/client"
@@ -18,7 +20,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-//Store store handler for store requests
+// Store store handler for store requests
 type Store struct {
 	serviceName string
 	store       store.Store
@@ -33,7 +35,6 @@ func NewStore(serviceName string, s store.Store, rs store.RaftStore) *Store {
 func (s *Store) forwardToLeader(ctx context.Context, resource string, req *proto.Request, rsp *proto.Response) error {
 	configFuture := s.raftStore.GetConfiguration()
 	for _, peer := range configFuture.Servers {
-		log.Println(peer)
 		if peer.Address == s.raftStore.Leader() {
 			ctx2, cancel := context.WithTimeout(metadata.NewContext(context.Background(), map[string]string{
 				"NodeID": string(peer.ID),
@@ -54,7 +55,7 @@ func (s *Store) Get(ctx context.Context, req *proto.Request, rsp *proto.Response
 	log.Printf("%s - received get request", server.DefaultOptions().Id)
 	var resp interface{}
 	var err error
-	if err = s.store.DataStore().Get(req.Key, "store", &resp); err == nil {
+	if err = s.store.DataStore().Get(req.Key, req.Store, &resp); err == nil {
 		rsp.Key = req.Key
 		var val []byte
 		if val, err = json.Marshal(&resp); err == nil {

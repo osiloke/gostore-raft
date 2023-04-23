@@ -5,50 +5,39 @@ import (
 	"log"
 	"os"
 
+	"github.com/osiloke/gostore"
 	"github.com/osiloke/gostore_raft/service"
 	"github.com/osiloke/gostore_raft/store"
 )
 
-//NewNode creates a new node
-func NewNode(nodeID, advertiseName, raftAddr, raftDir string) *Node {
-	raftStore := store.NewDefaultStore(nodeID, raftDir, raftAddr)
+// NewNode creates a new node
+func NewNode(nodeID, advertiseName, raftAddr, raftDir string, gs gostore.ObjectStore) *Node {
+	raftStore := store.NewDefaultStore(nodeID, raftDir, raftAddr, gs)
 	srv := service.New(raftAddr, nodeID, advertiseName, raftStore, raftStore)
 
 	logger := log.New(os.Stderr, "["+nodeID+"] ", log.LstdFlags)
 	return &Node{srv: srv, raftStore: raftStore, logger: logger}
 }
 
-func NewExpectNode(nodeID, advertiseName, raftAddr, raftDir string, expect int) *Node {
-	raftStore := store.NewDefaultStore(nodeID, raftDir, raftAddr)
+func NewExpectNode(nodeID, advertiseName, raftAddr, raftDir string, expect int, gs gostore.ObjectStore) *Node {
+	raftStore := store.NewDefaultStore(nodeID, raftDir, raftAddr, gs)
 	srv := service.New(raftAddr, nodeID, advertiseName, raftStore, raftStore)
 
 	logger := log.New(os.Stderr, "["+nodeID+"] ", log.LstdFlags)
 	return &Node{srv: srv, raftStore: raftStore, logger: logger, expect: expect}
 }
 
-//Node a node represents a store and its various raft foo
+// Node a node represents a store and its various raft foo
 type Node struct {
 	srv       *service.Service
-	ctx       context.Context
 	raftStore store.RaftStore
 	cancel    context.CancelFunc
 	logger    *log.Logger
 	expect    int
 }
 
-func (n *Node) run() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	n.ctx = ctx
-	n.cancel = cancel
-	go n.srv.Run(ctx)
-	if err := n.srv.Join(); err != nil {
-		return err
-	}
-	return nil
-}
-
-//Start a node. Join existing nodes if possible
-func (n *Node) Start(ctx context.Context) error {
+// Start a node. Join existing nodes if possible
+func (n *Node) Start(ctx context.Context, reload bool) error {
 	if err := n.raftStore.Start(); err != nil {
 		return err
 	}
@@ -73,6 +62,9 @@ func (n *Node) Start(ctx context.Context) error {
 			//try to bootstrap if registry is 3
 			return err
 		}
+		if err := n.raftStore.Replay(); err != nil {
+			return err
+		}
 		return nil
 	}
 	err := n.raftStore.Open(false)
@@ -85,19 +77,23 @@ func (n *Node) Start(ctx context.Context) error {
 
 // Stop a node
 func (n *Node) Stop() error {
-	// n.raftStore.Close()
-	if err := n.srv.Stop(); err != nil {
-		return err
-	}
 	if err := n.srv.Leave(); err != nil {
 		return err
 	}
+	if err := n.srv.Stop(); err != nil {
+		return err
+	}
+	n.Close()
 	return nil
 
 }
 
-//Close close this node service
+// Close close this node service
 func (n *Node) Close() {
+	n.logger.Println("[INFO] closing node")
+	if err := n.raftStore.Close(true); err != nil {
+		log.Printf("failed to close store: %s", err.Error())
+	}
 	if n.cancel != nil {
 		n.cancel()
 	}

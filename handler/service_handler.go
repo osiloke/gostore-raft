@@ -7,7 +7,6 @@ import (
 
 	service "github.com/osiloke/gostore_raft/service/proto/service"
 	"github.com/osiloke/gostore_raft/store"
-	"go-micro.dev/v4/metadata"
 	"go-micro.dev/v4/server"
 
 	"golang.org/x/net/context"
@@ -34,8 +33,8 @@ func (e *Service) Join(ctx context.Context, req *service.Request, rsp *service.R
 
 //Leave a cluster
 func (e *Service) Leave(ctx context.Context, req *service.Request, rsp *service.Response) error {
-	md, _ := metadata.FromContext(ctx)
-	log.Printf("Received Service.Leave request from %s with metadata: %v", req.RaftAddr, md)
+	// md, _ := metadata.FromContext(ctx)
+	log.Printf("Received Service.Leave request from %s", req.RaftAddr)
 	if err := e.Store.Leave(req.NodeID); err != nil {
 		return err
 	}

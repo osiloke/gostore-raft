@@ -5,9 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/matryer/try"
@@ -130,7 +128,7 @@ func (s *Service) join() error {
 			return nil
 		}
 		s.logger.Printf("cannot join %s - %s", raftAddr, err.Error())
-		if !strings.Contains(err.Error(), "not the leader") {
+		if !strings.Contains(err.Error(), "not leader") {
 			return err
 		}
 	}
@@ -190,17 +188,20 @@ func (s *Service) Bootstrap(expect int) error {
 
 // Join is a convinience method for sending a join request to every service except the current one
 func (s *Service) Join() error {
-
-	// if s.raftStore.IsLeader() {
-	// 	return errors.New("you are the leader")
-	// }
 	//this needs to be retried, in case a leader is still staging
 	err := try.Do(func(attempt int) (bool, error) {
-
+		s.logger.Printf("join attempt #%d", attempt)
 		if s.raftStore.IsLeader() {
+			s.logger.Printf("join attempt resolved - this is the leader")
+			// check
+			// if !s.raftStore.IsRaftLogCreated() {
+			// 	s.logger.Printf("reapplying existing fsm")
+			// 	if err := s.raftStore.ReapplyFSM(); err != nil {
+			// 		return false, err
+			// 	}
+			// }
 			return true, nil
 		}
-		s.logger.Printf("join attempt #%d", attempt)
 
 		err := s.join()
 		if err != nil {
@@ -224,7 +225,7 @@ func (s *Service) Start() error {
 	return nil
 }
 
-//Stop this service
+// Stop this service
 func (s *Service) Stop() error {
 	if err := s.server.Stop(); err != nil {
 		return err
@@ -273,29 +274,12 @@ func (s *Service) Leave() error {
 
 // Run runs a service which listens for raft and store requests
 func (s *Service) Run(ctx context.Context) error {
-	ch := make(chan os.Signal, 1)
-	stop := make(chan bool, 1)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
 
-	if err := s.Start(); err != nil {
+	err := s.Start()
+	if err != nil {
 		panic(err)
 		// return err
 	}
-	select {
-	case <-ctx.Done():
-		log.Println("context ended")
-		stop <- true
-	case <-stop:
-		log.Println("stopping")
-		break
-	case <-ch:
-		log.Println("received os signal")
-		stop <- true
-	}
 
-	if err := s.Stop(); err != nil {
-		log.Println("unable to stop")
-		return err
-	}
-	return nil
+	return err
 }

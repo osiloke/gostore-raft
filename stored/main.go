@@ -2,20 +2,25 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
+	"github.com/gosimple/slug"
+	"github.com/osiloke/gostore-contrib/badger"
 	"github.com/osiloke/gostore_raft/node"
 	"github.com/urfave/cli/v2"
-	"go-micro.dev/v4/cmd"
+	"go-micro.dev/v4/util/cmd"
 )
 
 func main() {
 	var (
 		nodeID, clusterName, raftDir, raftAddr string
 		expect                                 int
+		reload                                 bool
 	)
 	cmd.DefaultCmd.App().Flags = append(
 		cmd.DefaultCmd.App().Flags,
@@ -25,13 +30,15 @@ func main() {
 			Usage:       "node id",
 			Value:       "node0",
 			Destination: &nodeID,
-		}, &cli.StringFlag{
+		},
+		&cli.StringFlag{
 			Name:        "clusterName",
 			EnvVars:     []string{"CLUSTER_NAME"},
 			Usage:       "gostore.raft",
-			Value:       "go.micro.api.raft",
+			Value:       "go.micro.raft",
 			Destination: &clusterName,
-		}, &cli.StringFlag{
+		},
+		&cli.StringFlag{
 			Name:        "raftDir",
 			EnvVars:     []string{"RAFT_DIR"},
 			Usage:       "./.raft",
@@ -50,27 +57,48 @@ func main() {
 			Value:       0,
 			Destination: &expect,
 		},
+		&cli.BoolFlag{
+			Name:        "reload",
+			EnvVars:     []string{"RELOAD"},
+			Usage:       "reload",
+			Value:       false,
+			Destination: &reload,
+		},
 	)
+
 	cmd.Init(cmd.Name("gostore.node"))
 	var nd *node.Node
+
+	basePath := filepath.Join(slug.Make(nodeID), raftDir)
+	if err := os.MkdirAll(basePath, fs.FileMode(int(0777))); err != nil {
+		panic(err)
+	}
+
+	db, err := badger.NewWithIndex(basePath, "moss")
+	if err != nil {
+		panic(err)
+	}
+
 	if expect > 0 {
-		nd = node.NewExpectNode(nodeID, clusterName, raftAddr, raftDir, expect)
+		nd = node.NewExpectNode(nodeID, clusterName, raftAddr, basePath, expect, db)
 	} else {
-		nd = node.NewNode(nodeID, clusterName, raftAddr, raftDir)
+		nd = node.NewNode(nodeID, clusterName, raftAddr, basePath, db)
 	}
 	log.Printf("created %s", nodeID)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err := nd.Start(ctx)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
+	go func() {
+		err := nd.Start(ctx, reload)
+		if err != nil {
+			log.Println("failed starting", err.Error())
+			cancel()
+			return
+		}
+	}()
 	log.Printf("started %s", nodeID)
-	defer nd.Stop()
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	select {
 	case <-ctx.Done():
 		log.Println("context ended")
@@ -79,5 +107,9 @@ func main() {
 		log.Println("received os signal")
 		break
 	}
-	log.Printf("stopping %s", nodeID)
+	if err := nd.Stop(); err != nil {
+		log.Printf("failed stopping node %v", err)
+	} else {
+		log.Println("stopped node")
+	}
 }
