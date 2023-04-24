@@ -17,11 +17,7 @@ import (
 )
 
 func main() {
-	var (
-		nodeID, clusterName, raftDir, raftAddr string
-		expect                                 int
-		reload                                 bool
-	)
+	cfg := &node.Config{}
 	cmd.DefaultCmd.App().Flags = append(
 		cmd.DefaultCmd.App().Flags,
 		&cli.StringFlag{
@@ -29,74 +25,94 @@ func main() {
 			EnvVars:     []string{"NODE_ID"},
 			Usage:       "node id",
 			Value:       "node0",
-			Destination: &nodeID,
+			Destination: &cfg.NodeID,
 		},
 		&cli.StringFlag{
 			Name:        "clusterName",
-			EnvVars:     []string{"CLUSTER_NAME"},
+			EnvVars:     []string{"ADVERTISE_NAME"},
 			Usage:       "gostore.raft",
 			Value:       "go.micro.raft",
-			Destination: &clusterName,
+			Destination: &cfg.AdvertiseName,
 		},
 		&cli.StringFlag{
 			Name:        "raftDir",
 			EnvVars:     []string{"RAFT_DIR"},
 			Usage:       "./.raft",
 			Value:       "./.raft",
-			Destination: &raftDir,
+			Destination: &cfg.RaftDir,
 		}, &cli.StringFlag{
 			Name:        "raftAddr",
 			EnvVars:     []string{"RAFT_ADDR"},
 			Usage:       "raft addr",
 			Value:       "127.0.0.1:5000",
-			Destination: &raftAddr,
+			Destination: &cfg.RaftAddr,
 		}, &cli.IntFlag{
 			Name:        "bootstrap-expect",
 			EnvVars:     []string{"BOOTSTRAP_EXPECT"},
 			Usage:       "if this is greater than 0, this node will only bootstrap when n nodes are available, this has to be an odd number greater than 1",
 			Value:       0,
-			Destination: &expect,
-		},
-		&cli.BoolFlag{
-			Name:        "reload",
-			EnvVars:     []string{"RELOAD"},
-			Usage:       "reload",
+			Destination: &cfg.Expect,
+		}, &cli.StringFlag{
+			Name:        "node-ca-cert",
+			EnvVars:     []string{"NODE_CA_CERT"},
+			Usage:       "specify path to ca cert",
+			Value:       "",
+			Destination: &cfg.NodeX509CACert,
+		}, &cli.StringFlag{
+			Name:        "node-cert",
+			EnvVars:     []string{"NODE_CERT"},
+			Usage:       "specify path to cert",
+			Value:       "",
+			Destination: &cfg.NodeX509Cert,
+		}, &cli.StringFlag{
+			Name:        "node-key",
+			EnvVars:     []string{"NODE_KEY"},
+			Usage:       "specify path to key",
+			Value:       "",
+			Destination: &cfg.NodeX509Key,
+		}, &cli.BoolFlag{
+			Name:        "node-no-verify",
+			EnvVars:     []string{"NODE_NO_VERIFY"},
+			Usage:       "skip verifying node certs",
 			Value:       false,
-			Destination: &reload,
+			Destination: &cfg.NoNodeVerify,
+		}, &cli.BoolFlag{
+			Name:        "node-verify-client",
+			EnvVars:     []string{"NODE_VERIFY_CLIENT"},
+			Usage:       "skip verifying node certs",
+			Value:       false,
+			Destination: &cfg.NodeVerifyClient,
 		},
 	)
 
 	cmd.Init(cmd.Name("gostore.node"))
 	var nd *node.Node
 
-	basePath := filepath.Join(slug.Make(nodeID), raftDir)
-	if err := os.MkdirAll(basePath, fs.FileMode(int(0777))); err != nil {
+	raftDir := filepath.Join(slug.Make(cfg.NodeID), cfg.RaftDir)
+	if err := os.MkdirAll(raftDir, fs.FileMode(int(0777))); err != nil {
 		panic(err)
 	}
 
-	db, err := badger.NewWithIndex(basePath, "moss")
+	db, err := badger.NewWithIndex(raftDir, "moss")
 	if err != nil {
 		panic(err)
 	}
 
-	if expect > 0 {
-		nd = node.NewExpectNode(nodeID, clusterName, raftAddr, basePath, expect, db)
-	} else {
-		nd = node.NewNode(nodeID, clusterName, raftAddr, basePath, db)
-	}
-	log.Printf("created %s", nodeID)
+	cfg.RaftDir = raftDir
+	cfg.GoStore = db
+
+	nd = node.NewNode(cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		err := nd.Start(ctx, reload)
+		err := nd.Start(ctx)
 		if err != nil {
 			log.Println("failed starting", err.Error())
 			cancel()
 			return
 		}
 	}()
-	log.Printf("started %s", nodeID)
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	select {

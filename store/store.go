@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -44,7 +43,9 @@ const (
 
 	// raftLogCacheSize is the maximum number of logs to cache in-memory.
 	// This is used to reduce disk I/O for the recently committed entries.
-	raftLogCacheSize = 512
+	raftLogCacheSize    = 512
+	connectionPoolCount = 5
+	connectionTimeout   = 10 * time.Second
 )
 
 type command struct {
@@ -105,10 +106,11 @@ type DefaultStore struct {
 	observerChan  chan raft.Observation
 	observer      *raft.Observer
 	// observerWg        sync.WaitGroup
+	ln Listener
 }
 
 // NewDefaultStore returns a new DefaultStore.
-func NewDefaultStore(ID, raftDir, raftBind string, gs gostore.ObjectStore) *DefaultStore {
+func NewDefaultStore(ln Listener, ID, raftDir, raftBind string, gs gostore.ObjectStore) *DefaultStore {
 	return &DefaultStore{
 		RaftDir:  raftDir,
 		RaftBind: raftBind,
@@ -118,6 +120,7 @@ func NewDefaultStore(ID, raftDir, raftBind string, gs gostore.ObjectStore) *Defa
 			Name:  ID,
 			Level: hclog.LevelFromString("DEBUG"),
 		}),
+		ln: ln,
 	}
 }
 
@@ -160,14 +163,17 @@ func (s *DefaultStore) Start() (retErr error) {
 	}
 
 	// Setup Raft communication.
-	addr, err := net.ResolveTCPAddr("tcp", s.RaftBind)
-	if err != nil {
-		return err
-	}
-	transport, err := raft.NewTCPTransport(s.RaftBind, addr, 3, 10*time.Second, os.Stdout)
-	if err != nil {
-		return err
-	}
+	// addr, err := net.ResolveTCPAddr("tcp", s.RaftBind)
+	// if err != nil {
+	// 	return err
+	// }
+
+	transport := raft.NewNetworkTransport(NewTransport(s.ln), connectionPoolCount, connectionTimeout, nil)
+
+	// transport, err := raft.NewTCPTransport(s.RaftBind, addr, 3, 10*time.Second, os.Stdout)
+	// if err != nil {
+	// 	return err
+	// }
 	// Instantiate the Raft systems.
 	ra, err := raft.NewRaft(config, fsmStore, cacheStore, store, snapshotStore, transport)
 	if err != nil {
@@ -301,7 +307,7 @@ func (s *DefaultStore) Delete(key, store string) error {
 // Join joins a node, identified by nodeID and located at addr, to this store.
 // The node must be ready to respond to Raft communications at that address.
 func (s *DefaultStore) Join(nodeID, addr string) error {
-	s.logger.Debug("received join request for remote node as [%s]%s", nodeID, addr)
+	s.logger.Debug("received join request for remote node", "nodeID", nodeID, "addr", addr)
 	if !s.IsLeader() {
 		return errors.New("not leader")
 	}

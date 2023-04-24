@@ -60,7 +60,7 @@ func (s *DefaultStore) replay() error {
 		logCounter := 0
 		if err = s.setReplay(true); err == nil {
 			s.raftReplaying = true
-			s.logger.Info("Replaying logs from database")
+			s.logger.Info("Replaying logs from database", "lastKey", string(lastKey))
 			// open replay store
 			db := s.gs.GetStore().(*badgerdb.DB)
 			err = db.View(func(txn *badgerdb.Txn) error {
@@ -117,7 +117,7 @@ func (s *DefaultStore) replay() error {
 					}
 					keyWriteCounter++
 					logCounter++
-					s.logger.Debug("Reapplying key", "store", store, "key", key) //, "value", hclog.Fmt("%s", string(obj[1])))
+					s.logger.Info("Reapplying key", "store", store, "key", key) //, "value", hclog.Fmt("%s", string(obj[1])))
 					if keyWriteCounter == 100 {
 						s.logger.Info("writing last replayed key", "key", string(k))
 						if err := s.writeLastReplyedKey(k); err != nil {
