@@ -7,10 +7,15 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/go-micro/plugins/v4/registry/nats"
+	common "github.com/osiloke/gostore-common"
 	"github.com/osiloke/gostore_raft/service"
 	"github.com/osiloke/gostore_raft/store"
 	"github.com/rqlite/rqlite/tcp"
+	"go-micro.dev/v4/registry"
+	"go-micro.dev/v4/server"
 )
 
 const (
@@ -22,13 +27,45 @@ const (
 type Node struct {
 	srv       *service.Service
 	raftStore store.RaftStore
+	kvStore   store.Store
 	cancel    context.CancelFunc
 	logger    *log.Logger
 	cfg       *Config
 }
 
+// NodeGoStore returns a gostore object store that overides save and delete to use the node's kv store
+type NodeGoStore struct {
+	common.ObjectStore
+	node *Node
+}
+
 // NewNode creates a new node
 func NewNode(cfg *Config) *Node {
+	if cfg.Server == nil {
+		r := server.DefaultOptions().Registry
+		opts := server.DefaultOptions().Registry.Options()
+		if r.String() == "nats" {
+			r = nats.NewRegistry(
+				registry.TLSConfig(opts.TLSConfig),
+				registry.Timeout(500*time.Millisecond),
+				registry.Addrs(opts.Addrs...),
+				registry.Secure(opts.Secure),
+				registry.Logger(opts.Logger))
+		}
+		serviceServer := server.NewServer(
+			server.Name(cfg.AdvertiseName),
+			server.Id(cfg.NodeID),
+			server.Registry(r),
+			server.Metadata(map[string]string{
+				"ID":       cfg.NodeID,
+				"raftAddr": cfg.RaftAddr,
+			}),
+			// server.Transport(server.DefaultOptions().Transport),
+			// server.Registry(mdns.NewRegistry()),
+		)
+
+		cfg.Server = serviceServer
+	}
 	logger := log.New(os.Stderr, "["+cfg.NodeID+"] ", log.LstdFlags)
 	return &Node{cfg: cfg, logger: logger}
 }
@@ -68,7 +105,7 @@ func (n *Node) startNodeMux(cfg *Config, ln net.Listener) (*tcp.Mux, error) {
 
 // Start a node. Join existing nodes if possible
 func (n *Node) Start(ctx context.Context) error {
-	n.logger.Println("starting node ", n.cfg.ClusterName+"."+n.cfg.NodeID)
+	n.logger.Println("starting node ", n.cfg.AdvertiseName+"."+n.cfg.NodeID)
 	muxLn, err := net.Listen("tcp", n.cfg.RaftAddr)
 	if err != nil {
 		log.Fatalf("failed to listen on %s: %s", n.cfg.RaftAddr, err.Error())
@@ -79,8 +116,9 @@ func (n *Node) Start(ctx context.Context) error {
 	}
 	ln := mux.Listen(MuxRaftHeader)
 	raftStore := store.NewDefaultStore(ln, n.cfg.NodeID, n.cfg.RaftDir, n.cfg.RaftAddr, n.cfg.GoStore)
-	srv := service.New(n.cfg.RaftAddr, n.cfg.NodeID, n.cfg.AdvertiseName, raftStore, raftStore)
+	srv := service.New(n.cfg.RaftAddr, n.cfg.NodeID, n.cfg.AdvertiseName, raftStore, raftStore, n.cfg.Server)
 	n.raftStore = raftStore
+	n.kvStore = (store.Store)(raftStore)
 	n.srv = srv
 
 	if err := raftStore.Start(); err != nil {

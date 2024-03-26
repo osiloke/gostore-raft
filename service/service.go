@@ -1,3 +1,4 @@
+// go generate protoc --proto_path=.  --go_out=. store.proto
 package service
 
 import (
@@ -14,34 +15,14 @@ import (
 	"go-micro.dev/v4/registry"
 	"go-micro.dev/v4/server"
 
-	"github.com/go-micro/plugins/v4/registry/nats"
 	"github.com/osiloke/gostore_raft/handler"
 	proto "github.com/osiloke/gostore_raft/service/proto/service"
+	storeProto "github.com/osiloke/gostore_raft/service/proto/store"
 	"github.com/osiloke/gostore_raft/store"
 )
 
 // New service
-func New(raftAddr, nodeID, advertiseName string, raftStore store.RaftStore, dataStore store.Store) *Service {
-	r := server.DefaultOptions().Registry
-	opts := server.DefaultOptions().Registry.Options()
-	if r.String() == "nats" {
-		r = nats.NewRegistry(
-			registry.TLSConfig(opts.TLSConfig),
-			registry.Timeout(500*time.Millisecond),
-			registry.Addrs(opts.Addrs...),
-			registry.Secure(opts.Secure),
-			registry.Logger(opts.Logger))
-	}
-	serviceServer := server.NewServer(
-		server.Name(advertiseName),
-		server.Id(nodeID),
-		server.Registry(r),
-		server.Metadata(map[string]string{
-			"ID":       nodeID,
-			"raftAddr": raftAddr,
-		}),
-		// server.Registry(mdns.NewRegistry()),
-	)
+func New(raftAddr, nodeID, advertiseName string, raftStore store.RaftStore, dataStore store.Store, serviceServer server.Server) *Service {
 	logger := log.New(os.Stderr, "["+nodeID+"] ", log.LstdFlags)
 	srv := &Service{raftAddr, nodeID, advertiseName, raftStore, dataStore, serviceServer, logger}
 	srv.setup()
@@ -67,6 +48,10 @@ type Service struct {
 	logger        *log.Logger
 }
 
+func (s *Service) Store() store.Store {
+	return s.store
+}
+
 func (s *Service) setup() {
 	// Register Handlers
 	s.server.Handle(
@@ -74,11 +59,7 @@ func (s *Service) setup() {
 			&handler.Service{Store: s.raftStore},
 		),
 	)
-	s.server.Handle(
-		server.NewHandler(
-			handler.NewStore(s.advertiseName, s.store, s.raftStore),
-		),
-	)
+	storeProto.RegisterStoreHandler(s.server, handler.NewStore(s.advertiseName, s.store, s.raftStore))
 }
 
 // ListServices list all nodes that are reachable under the advertise name

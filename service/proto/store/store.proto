@@ -1,23 +1,37 @@
 syntax = "proto3";
 
 package gostore_raft.service.store;
+
+import "google/protobuf/any.proto";
 option go_package = "../store";
 
 service Store {
 	rpc All(Request) returns (Response) {}
 	rpc Get(Request) returns (Response) {}
 	rpc Set(Request) returns (Response) {}
+	rpc StartTX(Request) returns (Response) {}
+	rpc CommitTX(Request) returns (Response) {}
+	rpc GetTX(Request) returns (Response) {}
+	rpc SetTX(Request) returns (Response) {}
 }
 
 message Request {
 	string key = 1;
 	string store = 2;
 	string val = 3;
+	string type = 4;
+	map<string, google.protobuf.Any> pts = 5;
+	string tx = 6;
+	int64 count = 7;
+	int64 size = 8;
+	map<string, google.protobuf.Any> filter = 9;
+	map<string, google.protobuf.Any> aggregates  = 10;
 }
 
 message Response {
 	string key = 1;
 	string store = 2;
 	string val = 3;
+	string tx = 4;
 }
  

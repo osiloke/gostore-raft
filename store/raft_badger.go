@@ -11,15 +11,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
-	"github.com/osiloke/gostore"
+	common "github.com/osiloke/gostore-common"
 )
 
 type raftBadger struct {
 	logger hclog.Logger
-	gs     gostore.ObjectStore
+	gs     common.ObjectStore
 }
 
 // Apply applies a Raft log entry to the key-value store.

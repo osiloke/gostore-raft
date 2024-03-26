@@ -13,6 +13,7 @@ start a cluster
 install go-micro
 
 `go install github.com/go-micro/cli/cmd/go-micro@latest`
+`go install github.com/go-micro/generator/cmd/protoc-gen-micro@latest`
 
 call a store endpoint
 
@@ -21,4 +22,6 @@ go-micro  call go.micro.raft Store.Get '{"key": "hello"}'
 go-micro call go.micro.raft Store.Set '{"key": "hello", "val": "world"}'
 ```
 
-protoc --proto_path=.  --go_out=. store.proto
+# Generate pb
+`protoc --proto_path=.  --go_out=. --micro_out=. --micro_opt="client=true" service.proto`
+`protoc --proto_path=.  --go_out=. --micro_out=. --micro_opt="client=true" store.proto`

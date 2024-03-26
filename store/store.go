@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
-	"github.com/osiloke/gostore"
+	common "github.com/osiloke/gostore-common"
 )
 
 var (
@@ -75,7 +75,7 @@ type RaftStore interface {
 type Store interface {
 	Delete(string, string) error
 	Set(string, string, interface{}) error
-	DataStore() gostore.ObjectStore
+	DataStore() common.ObjectStore
 }
 
 // DefaultStore is a simple key-value store, where all changes are made via Raft consensus.
@@ -92,7 +92,7 @@ type DefaultStore struct {
 	raftConfig        *raft.Config
 	raftLogstore      raft.LogStore
 	raftFileSnapshots *raft.FileSnapshotStore
-	gs                gostore.ObjectStore
+	gs                common.ObjectStore
 
 	raft *raft.Raft // The consensus mechanism
 
@@ -110,7 +110,7 @@ type DefaultStore struct {
 }
 
 // NewDefaultStore returns a new DefaultStore.
-func NewDefaultStore(ln Listener, ID, raftDir, raftBind string, gs gostore.ObjectStore) *DefaultStore {
+func NewDefaultStore(ln Listener, ID, raftDir, raftBind string, gs common.ObjectStore) *DefaultStore {
 	return &DefaultStore{
 		RaftDir:  raftDir,
 		RaftBind: raftBind,
@@ -408,7 +408,7 @@ func (s *DefaultStore) Close(wait bool) (retErr error) {
 	return nil
 }
 
-func (s *DefaultStore) DataStore() gostore.ObjectStore {
+func (s *DefaultStore) DataStore() common.ObjectStore {
 	return s.gs
 }
 

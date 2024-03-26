@@ -10,9 +10,8 @@ import (
 
 	"github.com/osiloke/gostore_raft/selectors"
 
-	// service "github.com/osiloke/gostore_raft/service/proto/service"
-	proto "github.com/osiloke/gostore_raft/service/proto/store"
-	"github.com/osiloke/gostore_raft/store"
+	"github.com/osiloke/gostore_raft/service/proto/store"
+	raft_store "github.com/osiloke/gostore_raft/store"
 	"go-micro.dev/v4/client"
 	"go-micro.dev/v4/metadata"
 	"go-micro.dev/v4/server"
@@ -21,18 +20,19 @@ import (
 )
 
 // Store store handler for store requests
+// s *Store github.com/osiloke/gostore_raft/service/proto/store.StoreService
 type Store struct {
 	serviceName string
-	store       store.Store
-	raftStore   store.RaftStore
+	store       raft_store.Store
+	raftStore   raft_store.RaftStore
 }
 
-func NewStore(serviceName string, s store.Store, rs store.RaftStore) *Store {
+func NewStore(serviceName string, s raft_store.Store, rs raft_store.RaftStore) *Store {
 	return &Store{serviceName, s, rs}
 }
 
 // TODO: should be able to fetch leader from registry
-func (s *Store) forwardToLeader(ctx context.Context, resource string, req *proto.Request, rsp *proto.Response) error {
+func (s *Store) forwardToLeader(ctx context.Context, resource string, req *store.Request, rsp *store.Response) error {
 	configFuture := s.raftStore.GetConfiguration()
 	for _, peer := range configFuture.Servers {
 		if peer.Address == s.raftStore.Leader() {
@@ -50,8 +50,14 @@ func (s *Store) forwardToLeader(ctx context.Context, resource string, req *proto
 	return errors.New("leader not found")
 }
 
+// All keys in the store
+func (s *Store) All(ctx context.Context, req *store.Request, rsp *store.Response) error {
+	log.Printf("%s - received all request", server.DefaultOptions().Id)
+	return errors.New("not implemented")
+}
+
 // Get a key from the store
-func (s *Store) Get(ctx context.Context, req *proto.Request, rsp *proto.Response) error {
+func (s *Store) Get(ctx context.Context, req *store.Request, rsp *store.Response) error {
 	log.Printf("%s - received get request", server.DefaultOptions().Id)
 	var resp interface{}
 	var err error
@@ -66,7 +72,7 @@ func (s *Store) Get(ctx context.Context, req *proto.Request, rsp *proto.Response
 }
 
 // Set a key in the store
-func (s *Store) Set(ctx context.Context, req *proto.Request, rsp *proto.Response) error {
+func (s *Store) Set(ctx context.Context, req *store.Request, rsp *store.Response) error {
 	log.Printf("%s - received set request", server.DefaultOptions().Id)
 	if err := s.store.Set(req.Key, "store", req.Val); err != nil {
 		// if err is not leader, then forward req to leader
@@ -78,4 +84,20 @@ func (s *Store) Set(ctx context.Context, req *proto.Request, rsp *proto.Response
 	rsp.Key = req.Key
 	rsp.Val = req.Val
 	return nil
+}
+
+func (s *Store) StartTX(ctx context.Context, in *store.Request, rsp *store.Response) error {
+	panic("not implemented") // TODO: Implement
+}
+
+func (s *Store) CommitTX(ctx context.Context, in *store.Request, rsp *store.Response) error {
+	panic("not implemented") // TODO: Implement
+}
+
+func (s *Store) GetTX(ctx context.Context, in *store.Request, rsp *store.Response) error {
+	panic("not implemented") // TODO: Implement
+}
+
+func (s *Store) SetTX(ctx context.Context, in *store.Request, rsp *store.Response) error {
+	panic("not implemented") // TODO: Implement
 }

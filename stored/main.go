@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/blevesearch/bleve/v2"
 	"github.com/gosimple/slug"
 	"github.com/osiloke/gostore-contrib/badger"
 	"github.com/osiloke/gostore_raft/node"
@@ -92,8 +93,8 @@ func main() {
 	if err := os.MkdirAll(raftDir, fs.FileMode(int(0777))); err != nil {
 		panic(err)
 	}
-
-	db, err := badger.NewWithIndex(raftDir, "moss")
+	indexMapping := bleve.NewIndexMapping()
+	db, err := badger.NewWithIndex(raftDir, "moss", indexMapping)
 	if err != nil {
 		panic(err)
 	}

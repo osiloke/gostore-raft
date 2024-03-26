@@ -1,16 +1,19 @@
 package node
 
-import "github.com/osiloke/gostore"
+import (
+	common "github.com/osiloke/gostore-common"
+	"go-micro.dev/v4/server"
+)
 
 // Config stores node configuration
 type Config struct {
-	ClusterName   string
 	NodeID        string
 	AdvertiseName string
 	RaftAddr      string
 	RaftDir       string
 	Expect        int
-	GoStore       gostore.ObjectStore
+	GoStore       common.ObjectStore
+	Server        server.Server
 	// other certificates for any inter-node communications. May not be set.
 	NodeX509CACert string
 
