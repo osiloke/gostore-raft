@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
-	common "github.com/osiloke/gostore-common"
+	common "github.com/osiloke/gostore/common"
 )
 
 var (

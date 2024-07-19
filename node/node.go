@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-micro/plugins/v4/registry/nats"
-	common "github.com/osiloke/gostore-common"
+	common "github.com/osiloke/gostore/common"
 	"github.com/osiloke/gostore_raft/service"
 	"github.com/osiloke/gostore_raft/store"
 	"github.com/rqlite/rqlite/tcp"

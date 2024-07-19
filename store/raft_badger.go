@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
-	common "github.com/osiloke/gostore-common"
+	common "github.com/osiloke/gostore/common"
 )
 
 type raftBadger struct {

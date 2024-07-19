@@ -1,7 +1,7 @@
 package node
 
 import (
-	common "github.com/osiloke/gostore-common"
+	common "github.com/osiloke/gostore/common"
 	"go-micro.dev/v4/server"
 )
 

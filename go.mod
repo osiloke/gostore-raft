@@ -16,8 +16,8 @@ require (
 	github.com/hashicorp/go-hclog v1.4.0
 	github.com/hashicorp/raft v1.3.11
 	github.com/matryer/try v0.0.0-20161228173917-9ac251b645a2
-	github.com/osiloke/gostore-common v0.0.0-00010101000000-000000000000
 	github.com/osiloke/gostore-contrib v0.2.6
+	github.com/osiloke/gostore/common v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli/v2 v2.14.0
 	go-micro.dev/v4 v4.10.2
@@ -68,7 +68,7 @@ require (
 	github.com/nats-io/nkeys v0.4.4 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/osiloke/gostore v0.0.0-20200424173325-0e8f5ed32e6b // indirect
-	github.com/rs/zerolog v1.32.0 // indirect
+	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.7 // indirect
@@ -157,7 +157,7 @@ require (
 	go.etcd.io/bbolt v1.3.7 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/fatih/pool.v2 v2.0.0 // indirect
@@ -167,4 +167,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/osiloke/gostore-common => ../gostore/common
+replace github.com/osiloke/gostore/common => ../gostore/common
