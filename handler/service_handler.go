@@ -7,12 +7,12 @@ import (
 
 	service "github.com/osiloke/gostore_raft/service/proto/service"
 	"github.com/osiloke/gostore_raft/store"
-	"go-micro.dev/v4/server"
+	"go-micro.dev/v5/server"
 
 	"golang.org/x/net/context"
 )
 
-//Service a handler for raft requests
+// Service a handler for raft requests
 type Service struct {
 	Store store.RaftStore
 }
@@ -31,7 +31,7 @@ func (e *Service) Join(ctx context.Context, req *service.Request, rsp *service.R
 	return nil
 }
 
-//Leave a cluster
+// Leave a cluster
 func (e *Service) Leave(ctx context.Context, req *service.Request, rsp *service.Response) error {
 	// md, _ := metadata.FromContext(ctx)
 	log.Printf("Received Service.Leave request from %s", req.RaftAddr)
@@ -42,7 +42,7 @@ func (e *Service) Leave(ctx context.Context, req *service.Request, rsp *service.
 	return nil
 }
 
-//Stats a cluster
+// Stats a cluster
 func (s *Service) Stats(ctx context.Context, req *service.Request, rsp *service.Response) error {
 	v, _ := json.Marshal(s.Store.Stats())
 	rsp.Msg = string(v)

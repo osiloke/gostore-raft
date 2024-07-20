@@ -1,6 +1,9 @@
 syntax = "proto3";
 
-package gostore_raft.service;
+package gostore_raft.service.service;
+
+// import "google/protobuf/any.proto";
+option go_package = "../service";
 
 service Service {
 	rpc Join(Request) returns (Response) {}
@@ -21,4 +24,3 @@ message Response {
 message StatusResponse {
 	string msg = 1;
 }
- 

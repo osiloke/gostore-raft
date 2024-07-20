@@ -4,10 +4,10 @@ import (
 	"log"
 	"strings"
 
-	"go-micro.dev/v4/client"
-	"go-micro.dev/v4/metadata"
-	"go-micro.dev/v4/registry"
-	"go-micro.dev/v4/selector"
+	"go-micro.dev/v5/client"
+	"go-micro.dev/v5/metadata"
+	"go-micro.dev/v5/registry"
+	"go-micro.dev/v5/selector"
 	"golang.org/x/net/context"
 )
 

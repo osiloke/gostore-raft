@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/matryer/try"
-	"go-micro.dev/v4/client"
-	"go-micro.dev/v4/registry"
-	"go-micro.dev/v4/server"
+	"go-micro.dev/v5/client"
+	"go-micro.dev/v5/registry"
+	"go-micro.dev/v5/server"
 
 	"github.com/osiloke/gostore_raft/handler"
 	proto "github.com/osiloke/gostore_raft/service/proto/service"

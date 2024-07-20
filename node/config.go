@@ -2,7 +2,7 @@ package node
 
 import (
 	common "github.com/osiloke/gostore/common"
-	"go-micro.dev/v4/server"
+	"go-micro.dev/v5/server"
 )
 
 // Config stores node configuration

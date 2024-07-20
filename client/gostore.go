@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	common "github.com/osiloke/gostore/common"
-	"go-micro.dev/v4/client"
+	"go-micro.dev/v5/client"
 
 	proto "github.com/osiloke/gostore_raft/service/proto/store"
 )
